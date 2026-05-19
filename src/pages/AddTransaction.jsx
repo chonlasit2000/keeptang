@@ -8,8 +8,6 @@ import { useCategories } from '../hooks/useCategories.js';
 import { getTransaction, saveTransaction } from '../hooks/useTransactions.js';
 import { localDate } from '../lib/format.js';
 
-const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '⌫'];
-
 export default function AddTransaction() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -53,21 +51,6 @@ export default function AddTransaction() {
       setCategoryId(filteredCategories[0].id);
     }
   }, [categoryId, filteredCategories]);
-
-  const tapKey = (key) => {
-    if (key === '⌫') {
-      setAmount((current) => current.slice(0, -1));
-      return;
-    }
-    if (key === '.' && !amount) {
-      setAmount('0.');
-      return;
-    }
-    if (key === '.' && amount.includes('.')) return;
-    if (amount.includes('.') && amount.split('.')[1].length >= 2) return;
-    if (amount.replace('.', '').length >= 12) return;
-    setAmount((current) => (current === '0' && key !== '.' ? key : `${current}${key}`));
-  };
 
   const submit = async () => {
     if (loadError) return;
@@ -126,16 +109,23 @@ export default function AddTransaction() {
       </div>
 
       <section className="mt-5 rounded-2xl bg-white p-5 text-center shadow-soft">
-        <p className="text-sm font-semibold text-muted">จำนวนเงิน</p>
-        <p className="mt-2 min-h-12 text-4xl font-bold text-ink">{formatAmountInput(amount)}</p>
-      </section>
-
-      <section className="mt-5 grid grid-cols-3 gap-3">
-        {keys.map((key) => (
-          <button key={key} type="button" className="h-14 rounded-2xl bg-white text-xl font-bold shadow-soft active:scale-[0.98]" onClick={() => tapKey(key)}>
-            {key}
-          </button>
-        ))}
+        <label className="block">
+          <span className="text-sm font-semibold text-muted">จำนวนเงิน</span>
+          <span className="mt-3 flex min-w-0 items-center rounded-2xl bg-cream px-4 py-3 ring-1 ring-[#EAD8CA] focus-within:ring-coral">
+            <span className="shrink-0 text-3xl font-bold text-muted">฿</span>
+            <input
+              className="ml-2 min-w-0 flex-1 bg-transparent text-right text-4xl font-bold text-ink outline-none placeholder:text-[#BDA99D]"
+              type="text"
+              inputMode="decimal"
+              pattern="[0-9]*[.]?[0-9]*"
+              value={amount}
+              onChange={(event) => setAmount(sanitizeAmountInput(event.target.value))}
+              placeholder="0"
+              aria-label="จำนวนเงิน"
+            />
+          </span>
+          {amount ? <span className="mt-2 block text-right text-sm font-semibold text-muted">{formatAmountInput(amount)}</span> : null}
+        </label>
       </section>
 
       <section className="mt-5">
@@ -159,14 +149,14 @@ export default function AddTransaction() {
         </div>
       </section>
 
-      <section className="mt-5 grid gap-3 rounded-2xl bg-white p-4 shadow-soft">
-        <label className="block">
+      <section className="mt-5 grid min-w-0 gap-3 overflow-hidden rounded-2xl bg-white p-4 shadow-soft">
+        <label className="block min-w-0">
           <span className="text-sm font-semibold">วันที่</span>
-          <input className="mt-2 w-full rounded-2xl border border-[#EAD8CA] px-4 py-3 outline-none focus:border-coral" type="date" value={txnDate} onChange={(event) => setTxnDate(event.target.value)} />
+          <input className="mt-2 block w-full max-w-full min-w-0 rounded-2xl border border-[#EAD8CA] px-4 py-3 outline-none focus:border-coral" type="date" value={txnDate} onChange={(event) => setTxnDate(event.target.value)} />
         </label>
-        <label className="block">
+        <label className="block min-w-0">
           <span className="text-sm font-semibold">โน้ต</span>
-          <textarea className="mt-2 w-full resize-none rounded-2xl border border-[#EAD8CA] px-4 py-3 outline-none focus:border-coral" rows="2" value={note} onChange={(event) => setNote(event.target.value)} placeholder={selectedCategory?.name || 'รายละเอียดเพิ่มเติม'} />
+          <textarea className="mt-2 block w-full max-w-full min-w-0 resize-none rounded-2xl border border-[#EAD8CA] px-4 py-3 outline-none focus:border-coral" rows="2" value={note} onChange={(event) => setNote(event.target.value)} placeholder={selectedCategory?.name || 'รายละเอียดเพิ่มเติม'} />
         </label>
       </section>
 
@@ -177,6 +167,21 @@ export default function AddTransaction() {
       </button>
     </div>
   );
+}
+
+function sanitizeAmountInput(value) {
+  const normalized = value.replace(/,/g, '').replace(/[^\d.]/g, '');
+  const firstDot = normalized.indexOf('.');
+  const withoutExtraDots =
+    firstDot === -1
+      ? normalized
+      : `${normalized.slice(0, firstDot + 1)}${normalized.slice(firstDot + 1).replace(/\./g, '')}`;
+  const [integerPart, decimalPart = ''] = withoutExtraDots.split('.');
+  const integer = integerPart.slice(0, 10);
+  const decimal = decimalPart.slice(0, 2);
+
+  if (firstDot !== -1) return `${integer || '0'}.${decimal}`;
+  return integer;
 }
 
 function formatAmountInput(value) {
