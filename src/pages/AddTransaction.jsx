@@ -152,7 +152,7 @@ export default function AddTransaction() {
               }`}
               onClick={() => setCategoryId(category.id)}
             >
-              <CategoryBadge category={category} size="lg" />
+              <CategoryBadge category={category} size="lg" className="mx-auto" />
               <span className="mt-2 block truncate text-xs font-bold">{category.name}</span>
             </button>
           ))}

@@ -21,10 +21,11 @@ export default function Dashboard() {
       <MonthPicker value={month} onChange={setMonth} />
 
       <section className="mt-5 grid gap-3 md:grid-cols-3">
-        <div className="rounded-2xl bg-white p-5 shadow-soft md:order-3">
-          <p className="text-sm font-semibold text-muted">เงินคงเหลือ</p>
-          <p className={`mt-2 text-4xl font-bold ${summary.balance >= 0 ? 'text-income' : 'text-expense'}`}>{baht(summary.balance)}</p>
-        </div>
+        <SummaryCard
+          label="เงินคงเหลือ"
+          value={summary.balance}
+          className={`bg-white md:order-3 ${summary.balance >= 0 ? 'text-income' : 'text-expense'} ring-1 ring-[#F0DED1]`}
+        />
         <div className="grid grid-cols-2 gap-3 md:contents">
           <SummaryCard label="รายรับรวม" value={summary.income} className="bg-incomeSoft text-income md:order-1" />
           <SummaryCard label="รายจ่ายรวม" value={summary.expense} className="bg-expenseSoft text-expense md:order-2" />
@@ -70,9 +71,9 @@ export default function Dashboard() {
 
 function SummaryCard({ label, value, className }) {
   return (
-    <div className={`rounded-2xl p-4 ${className}`}>
+    <div className={`flex min-h-[104px] flex-col justify-between rounded-2xl p-4 shadow-soft ${className}`}>
       <p className="text-sm font-semibold opacity-80">{label}</p>
-      <p className="mt-1 text-xl font-bold">{baht(value)}</p>
+      <p className="mt-3 text-2xl font-bold leading-tight">{baht(value)}</p>
     </div>
   );
 }
