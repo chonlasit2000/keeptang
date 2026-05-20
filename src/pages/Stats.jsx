@@ -105,14 +105,14 @@ export default function Stats() {
 
           {categoryData.length > 0 ? (
             <div className="mt-4 grid gap-5 md:grid-cols-[13rem_1fr] lg:grid-cols-1">
-              <div className="relative mx-auto h-52 w-52">
+              <div className="keeptang-chart relative mx-auto h-52 w-52">
                 <PieChart width={208} height={208} margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
                   <Pie data={categoryData} dataKey="amount" nameKey="name" innerRadius={62} outerRadius={92} paddingAngle={3}>
                     {categoryData.map((item) => (
                       <Cell key={item.name} fill={item.color} />
                     ))}
                   </Pie>
-                  <Tooltip content={<MoneyTooltip />} position={{ x: 0, y: 0 }} />
+                  <Tooltip content={<MoneyTooltip />} offset={16} wrapperStyle={{ pointerEvents: 'none', zIndex: 10 }} />
                 </PieChart>
                 <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">
                   <div>
@@ -148,7 +148,7 @@ export default function Stats() {
           ) : null}
 
           {hasTrendData ? (
-            <div className="mt-5 flex-1 min-h-[16rem] w-full max-w-full min-w-0 overflow-hidden">
+            <div className="keeptang-chart mt-5 flex-1 min-h-[16rem] w-full max-w-full min-w-0 overflow-hidden">
               <BarChart
                 responsive
                 style={{ width: '100%', height: '100%', minWidth: 0 }}

@@ -48,6 +48,16 @@ button {
   scrollbar-width: none;
 }
 
+.keeptang-chart .recharts-wrapper,
+.keeptang-chart .recharts-wrapper * {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.keeptang-chart .recharts-wrapper:focus:not(:focus-visible),
+.keeptang-chart .recharts-wrapper *:focus:not(:focus-visible) {
+  outline: none;
+}
+
 .keeptang-day-picker {
   --rdp-accent-color: #d85a30;
   --rdp-accent-background-color: #fbf3e7;
