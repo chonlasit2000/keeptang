@@ -4,6 +4,7 @@ import Header from '../components/Header.jsx';
 import CategoryBadge from '../components/CategoryBadge.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ConfirmDialog from '../components/ConfirmDialog.jsx';
+import Select from '../components/Select.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useCategories } from '../hooks/useCategories.js';
 import { Icon } from '../lib/icons.jsx';
@@ -51,6 +52,13 @@ const colorOptions = [
   ['butter', 'เนย', '#FFF2BF'],
   ['teal', 'ทีล', '#DDF6F3'],
   ['leaf', 'ใบไม้', '#E6F4D7']
+];
+
+const groupOptions = [
+  { value: 'need', label: 'จำเป็น' },
+  { value: 'want', label: 'อยากได้' },
+  { value: 'saving', label: 'ออม/ลงทุน' },
+  { value: 'reward', label: 'รางวัล' }
 ];
 
 export default function Settings() {
@@ -206,12 +214,7 @@ export default function Settings() {
               ))}
             </div>
           </div>
-          <select className="rounded-2xl border border-[#EAD8CA] bg-white px-4 py-3 outline-none focus:border-coral" value={form.grp} onChange={(event) => setForm((current) => ({ ...current, grp: event.target.value }))}>
-            <option value="need">จำเป็น</option>
-            <option value="want">อยากได้</option>
-            <option value="saving">ออม/ลงทุน</option>
-            <option value="reward">รางวัล</option>
-          </select>
+          <Select value={form.grp} onChange={(grp) => setForm((current) => ({ ...current, grp }))} options={groupOptions} />
           <div className="flex gap-2">
             <button type="submit" disabled={submitting} className="flex-1 rounded-2xl bg-coral px-5 py-3 font-bold text-white disabled:opacity-60">
               {submitting ? 'กำลังบันทึก...' : editingId ? 'บันทึกการแก้ไข' : 'เพิ่มหมวดหมู่'}

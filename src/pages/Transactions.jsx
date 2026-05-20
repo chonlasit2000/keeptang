@@ -4,6 +4,7 @@ import MonthPicker from '../components/MonthPicker.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import TransactionRow from '../components/TransactionRow.jsx';
 import ConfirmDialog from '../components/ConfirmDialog.jsx';
+import Select from '../components/Select.jsx';
 import { useCategories } from '../hooks/useCategories.js';
 import { deleteTransaction, useTransactions } from '../hooks/useTransactions.js';
 import { baht, dateLabel, groupByDate, monthBounds, summarize } from '../lib/format.js';
@@ -21,6 +22,19 @@ export default function Transactions() {
   const filteredCategories = useMemo(
     () => (typeFilter === 'all' ? categories : categories.filter((category) => category.type === typeFilter)),
     [categories, typeFilter]
+  );
+  const categoryOptions = useMemo(
+    () => [
+      { value: '', label: 'ทุกหมวดหมู่' },
+      ...filteredCategories.map((category) => ({
+        value: category.id,
+        label: category.name,
+        description: category.type === 'income' ? 'รายรับ' : 'รายจ่าย',
+        icon: category.icon,
+        color: category.color
+      }))
+    ],
+    [filteredCategories]
   );
   const visibleTransactions = useMemo(
     () => (typeFilter === 'all' ? transactions : transactions.filter((transaction) => transaction.type === typeFilter)),
@@ -71,21 +85,10 @@ export default function Transactions() {
         </div>
       </section>
 
-      <label className="mt-4 block rounded-2xl bg-white p-4 shadow-soft">
-        <span className="text-sm font-semibold">กรองตามหมวดหมู่</span>
-        <select
-          className="mt-2 w-full rounded-2xl border border-[#EAD8CA] bg-white px-4 py-3 outline-none focus:border-coral"
-          value={categoryId}
-          onChange={(event) => setCategoryId(event.target.value)}
-        >
-          <option value="">ทุกหมวดหมู่</option>
-          {filteredCategories.map((category) => (
-            <option key={category.id} value={category.id}>
-              {category.type === 'income' ? 'รายรับ' : 'รายจ่าย'} - {category.name}
-            </option>
-          ))}
-        </select>
-      </label>
+      <section className="mt-4 rounded-2xl bg-white p-4 shadow-soft">
+        <p className="text-sm font-semibold">กรองตามหมวดหมู่</p>
+        <Select className="mt-2" value={categoryId} onChange={setCategoryId} options={categoryOptions} />
+      </section>
 
       <section className="mt-5">
         {error ? <p className="rounded-2xl bg-expenseSoft p-4 text-sm font-semibold text-expense">{error}</p> : null}
