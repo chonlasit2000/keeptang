@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import CategoryBadge from '../components/CategoryBadge.jsx';
 import EmptyState from '../components/EmptyState.jsx';
+import ThaiDatePicker from '../components/ThaiDatePicker.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useCategories } from '../hooks/useCategories.js';
 import { getTransaction, saveTransaction } from '../hooks/useTransactions.js';
@@ -149,11 +150,8 @@ export default function AddTransaction() {
         </div>
       </section>
 
-      <section className="mt-5 grid min-w-0 gap-3 overflow-hidden rounded-2xl bg-white p-4 shadow-soft">
-        <label className="block min-w-0">
-          <span className="text-sm font-semibold">วันที่</span>
-          <input className="mt-2 block w-full max-w-full min-w-0 rounded-2xl border border-[#EAD8CA] px-4 py-3 outline-none focus:border-coral" type="date" value={txnDate} onChange={(event) => setTxnDate(event.target.value)} />
-        </label>
+      <section className="mt-5 grid min-w-0 gap-3 rounded-2xl bg-white p-4 shadow-soft">
+        <ThaiDatePicker value={txnDate} onChange={setTxnDate} />
         <label className="block min-w-0">
           <span className="text-sm font-semibold">โน้ต</span>
           <textarea className="mt-2 block w-full max-w-full min-w-0 resize-none rounded-2xl border border-[#EAD8CA] px-4 py-3 outline-none focus:border-coral" rows="2" value={note} onChange={(event) => setNote(event.target.value)} placeholder={selectedCategory?.name || 'รายละเอียดเพิ่มเติม'} />

@@ -5,6 +5,7 @@ import { registerSW } from 'virtual:pwa-register';
 import App from './App.jsx';
 import { AuthProvider } from './contexts/AuthContext.jsx';
 import { CategoryProvider } from './contexts/CategoryContext.jsx';
+import 'react-day-picker/style.css';
 import './index.css';
 
 registerSW({ immediate: true });

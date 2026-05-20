@@ -47,3 +47,95 @@ button {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+.keeptang-day-picker {
+  --rdp-accent-color: #d85a30;
+  --rdp-accent-background-color: #fbf3e7;
+  --rdp-day-height: 2.75rem;
+  --rdp-day-width: 2.75rem;
+  --rdp-day_button-height: 2.5rem;
+  --rdp-day_button-width: 2.5rem;
+  --rdp-day_button-border-radius: 0.9rem;
+  --rdp-selected-border: 0;
+  color: #33251f;
+  width: 100%;
+}
+
+.keeptang-day-picker .rdp-months,
+.keeptang-day-picker .rdp-month,
+.keeptang-day-picker .rdp-month_grid {
+  width: 100%;
+  max-width: none;
+}
+
+.keeptang-day-picker .rdp-month_caption {
+  align-items: center;
+  justify-content: center;
+  color: #33251f;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.keeptang-day-picker .rdp-button_previous,
+.keeptang-day-picker .rdp-button_next {
+  border-radius: 999px;
+  background: #fbf3e7;
+  color: #d85a30;
+}
+
+.keeptang-day-picker .rdp-chevron {
+  fill: #d85a30;
+  width: 1rem;
+}
+
+.keeptang-day-picker .rdp-weekday {
+  color: #8b7569;
+  font-size: 0.75rem;
+  font-weight: 700;
+  opacity: 1;
+}
+
+.keeptang-day-picker .rdp-day {
+  padding: 0.125rem;
+}
+
+.keeptang-day-picker .rdp-day_button {
+  border: 1px solid transparent;
+  flex-direction: column;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.keeptang-day-picker .rdp-day_button:hover {
+  background: #fbf3e7;
+}
+
+.keeptang-day-picker .rdp-selected .rdp-day_button {
+  background: #d85a30;
+  color: #ffffff;
+}
+
+.keeptang-day-picker .rdp-selected {
+  font-size: inherit;
+}
+
+.keeptang-day-picker .rdp-today:not(.rdp-selected) .rdp-day_button {
+  border-color: rgba(216, 90, 48, 0.55);
+  color: #d85a30;
+}
+
+.keeptang-day-picker .rdp-today:not(.rdp-selected) .rdp-day_button::after {
+  display: block;
+  width: 0.25rem;
+  height: 0.25rem;
+  margin-top: 0.1rem;
+  border-radius: 999px;
+  background: currentColor;
+  content: "";
+}
+
+.keeptang-day-picker .rdp-outside {
+  color: #bda99d;
+  opacity: 0.75;
+}

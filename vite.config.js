@@ -48,5 +48,18 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,ico}']
       }
     })
-  ]
+  ],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+          if (id.includes('react-day-picker')) return 'datepicker';
+          if (id.includes('@supabase')) return 'supabase';
+          if (id.includes('react')) return 'react';
+          return 'vendor';
+        }
+      }
+    }
+  }
 });
