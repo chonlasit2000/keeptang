@@ -1,9 +1,10 @@
 import { NavLink, Link } from 'react-router-dom';
-import { Home, List, Plus, Settings, WalletCards } from 'lucide-react';
+import { BarChart3, Home, List, Plus, Settings, WalletCards } from 'lucide-react';
 
 const items = [
   { to: '/', label: 'หน้าแรก', icon: Home },
   { to: '/transactions', label: 'รายการ', icon: List },
+  { to: '/stats', label: 'สถิติ', icon: BarChart3 },
   { to: '/settings', label: 'ตั้งค่า', icon: Settings }
 ];
 

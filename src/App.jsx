@@ -5,6 +5,7 @@ import { useAuth } from './contexts/AuthContext.jsx';
 import AddTransaction from './pages/AddTransaction.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Login from './pages/Login.jsx';
+import Stats from './pages/Stats.jsx';
 import Settings from './pages/Settings.jsx';
 import Transactions from './pages/Transactions.jsx';
 
@@ -44,6 +45,7 @@ export default function App() {
         <Route path="/add" element={<AddTransaction />} />
         <Route path="/edit/:id" element={<AddTransaction />} />
         <Route path="/transactions" element={<Transactions />} />
+        <Route path="/stats" element={<Stats />} />
         <Route path="/settings" element={<Settings />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -53,10 +53,24 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (!id.includes('node_modules')) return undefined;
-          if (id.includes('react-day-picker')) return 'datepicker';
-          if (id.includes('@supabase')) return 'supabase';
-          if (id.includes('react')) return 'react';
+          const normalizedId = id.replace(/\\/g, '/');
+
+          if (!normalizedId.includes('node_modules')) return undefined;
+          if (normalizedId.includes('/node_modules/recharts/')) return 'charts';
+          if (normalizedId.includes('/node_modules/react-day-picker/')) return 'datepicker';
+          if (normalizedId.includes('/node_modules/@supabase/')) return 'supabase';
+          if (
+            [
+              '/node_modules/@remix-run/router/',
+              '/node_modules/react/',
+              '/node_modules/react-dom/',
+              '/node_modules/react-router/',
+              '/node_modules/react-router-dom/',
+              '/node_modules/scheduler/'
+            ].some((packagePath) => normalizedId.includes(packagePath))
+          ) {
+            return 'react';
+          }
           return 'vendor';
         }
       }
