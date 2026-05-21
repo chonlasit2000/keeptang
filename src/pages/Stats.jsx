@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   addDays,
   addMonths,
@@ -23,6 +23,8 @@ import {
   XAxis,
   YAxis
 } from 'recharts';
+import { useNavigate } from 'react-router-dom';
+import CategoryBadge from '../components/CategoryBadge.jsx';
 import Header from '../components/Header.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import RangeNav from '../components/RangeNav.jsx';
@@ -58,6 +60,7 @@ const groupMeta = {
 };
 
 const groupOrder = ['need', 'want', 'saving', 'reward'];
+const transactionPageSize = 20;
 
 const rangeCopy = {
   day: {
@@ -99,8 +102,12 @@ const rangeCopy = {
 };
 
 export default function Stats() {
+  const navigate = useNavigate();
   const [rangeMode, setRangeMode] = useState('month');
   const [anchor, setAnchor] = useState(new Date());
+  const [visibleCount, setVisibleCount] = useState(transactionPageSize);
+  const loadingMoreRef = useRef(false);
+  const sentinelRef = useRef(null);
   const copy = rangeCopy[rangeMode];
   const selectedBounds = useMemo(() => getRangeBounds(rangeMode, anchor), [anchor, rangeMode]);
   const trendBuckets = useMemo(() => getTrendBuckets(rangeMode, anchor), [anchor, rangeMode]);
@@ -135,6 +142,11 @@ export default function Stats() {
   const groupSummary = useMemo(() => buildGroupData(selectedExpenses), [selectedExpenses]);
   const groupData = groupSummary.groups;
   const hasTrendData = trendData.some((item) => item.income > 0 || item.expense > 0);
+  const visibleTransactions = useMemo(
+    () => selectedTransactions.slice(0, visibleCount),
+    [selectedTransactions, visibleCount]
+  );
+  const hasMoreTransactions = visibleCount < selectedTransactions.length;
   const handleRangeModeChange = (nextMode) => {
     setRangeMode(nextMode);
     setAnchor((current) => clampAnchorToToday(nextMode, current));
@@ -145,6 +157,31 @@ export default function Stats() {
   const handleNext = () => {
     setAnchor((current) => clampAnchorToToday(rangeMode, shiftAnchor(rangeMode, current, 1)));
   };
+
+  useEffect(() => {
+    setVisibleCount(transactionPageSize);
+  }, [selectedBounds.endDate, selectedBounds.startDate]);
+
+  useEffect(() => {
+    if (!hasMoreTransactions || typeof IntersectionObserver === 'undefined') return undefined;
+    const node = sentinelRef.current;
+    if (!node) return undefined;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting || loadingMoreRef.current) return;
+        loadingMoreRef.current = true;
+        setVisibleCount((count) => Math.min(count + transactionPageSize, selectedTransactions.length));
+        window.requestAnimationFrame(() => {
+          loadingMoreRef.current = false;
+        });
+      },
+      { rootMargin: '200px' }
+    );
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hasMoreTransactions, selectedTransactions.length]);
 
   return (
     <div>
@@ -260,6 +297,45 @@ export default function Stats() {
           </p>
         ) : null}
       </section>
+
+      <section className="mt-5">
+        <SectionHeader
+          title={`รายการในช่วงนี้ (${selectedTransactions.length} รายการ)`}
+          description="โน้ตและรายละเอียดรายการที่อยู่ในช่วงเวลาที่เลือก"
+        />
+
+        {error ? null : (
+          <div className="mt-3">
+            {!loading && selectedTransactions.length === 0 ? (
+              <EmptyState title="ไม่มีรายการในช่วงนี้" description="ลองเลือกช่วงเวลาอื่น หรือเพิ่มรายการใหม่เพื่อดูรายละเอียดตรงนี้" />
+            ) : null}
+
+            {visibleTransactions.length > 0 ? (
+              <div className="space-y-2">
+                {visibleTransactions.map((transaction) => (
+                  <StatsTxnRow
+                    key={transaction.id}
+                    transaction={transaction}
+                    onClick={() => navigate(`/edit/${transaction.id}`)}
+                  />
+                ))}
+              </div>
+            ) : null}
+
+            {hasMoreTransactions ? (
+              <div ref={sentinelRef} className="grid min-h-[4rem] place-items-center">
+                <p className="text-xs font-semibold text-muted">กำลังโหลดรายการเพิ่ม...</p>
+              </div>
+            ) : null}
+
+            {!loading && selectedTransactions.length > 0 && !hasMoreTransactions ? (
+              <p className="mt-3 text-center text-xs font-semibold text-muted">
+                แสดงครบทั้งหมด {selectedTransactions.length} รายการ
+              </p>
+            ) : null}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
@@ -287,6 +363,34 @@ function GroupCard({ group }) {
         <div className="h-full rounded-full" style={{ width: `${group.percent}%`, backgroundColor: meta.color }} />
       </div>
     </article>
+  );
+}
+
+function StatsTxnRow({ transaction, onClick }) {
+  const category = transaction.category;
+  const note = transaction.note?.trim();
+  const title = note || category?.name || 'ไม่ระบุหมวด';
+  const date = formatThaiDate(transaction.txn_date, 'd MMM yyyy');
+  const isIncome = transaction.type === 'income';
+  const amountClass = isIncome ? 'text-income' : 'text-expense';
+
+  return (
+    <button
+      type="button"
+      className="grid min-h-[64px] w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl bg-white p-3 text-left shadow-soft transition hover:-translate-y-0.5 hover:shadow-[0_18px_36px_rgba(51,37,31,0.1)]"
+      onClick={onClick}
+    >
+      <CategoryBadge category={category} />
+      <span className="min-w-0">
+        <span className="line-clamp-2 text-sm font-bold leading-snug text-ink">{title}</span>
+        <span className="mt-1 block truncate text-xs font-semibold text-muted">
+          {note ? `${category?.name || 'ไม่มีหมวดหมู่'} • ${date}` : date}
+        </span>
+      </span>
+      <span className={`shrink-0 text-right text-sm font-bold ${amountClass}`}>
+        {isIncome ? '+' : '-'}{baht(transaction.amount)}
+      </span>
+    </button>
   );
 }
 
