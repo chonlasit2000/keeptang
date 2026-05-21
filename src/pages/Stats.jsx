@@ -1,5 +1,16 @@
 import { useMemo, useState } from 'react';
-import { addMonths, format, startOfMonth } from 'date-fns';
+import {
+  addDays,
+  addMonths,
+  addWeeks,
+  addYears,
+  format,
+  getISOWeek,
+  parseISO,
+  startOfMonth,
+  startOfWeek,
+  startOfYear
+} from 'date-fns';
 import { th } from 'date-fns/locale';
 import {
   Bar,
@@ -17,7 +28,7 @@ import EmptyState from '../components/EmptyState.jsx';
 import RangeNav from '../components/RangeNav.jsx';
 import RangeToggle from '../components/RangeToggle.jsx';
 import { useTransactions } from '../hooks/useTransactions.js';
-import { clampAnchorToToday, getRangeBounds, getQueryBounds, shiftAnchor } from '../lib/dateRange.js';
+import { clampAnchorToToday, formatThaiDate, getRangeBounds, getQueryBounds, shiftAnchor } from '../lib/dateRange.js';
 import { baht } from '../lib/format.js';
 
 const chartColors = {
@@ -48,14 +59,54 @@ const groupMeta = {
 
 const groupOrder = ['need', 'want', 'saving', 'reward'];
 
+const rangeCopy = {
+  day: {
+    categoryDescription: 'สัดส่วนรายจ่ายของวันที่เลือก',
+    categoryEmptyTitle: 'ยังไม่มีรายจ่ายในวันนี้',
+    trendTitle: 'แนวโน้ม 7 วัน',
+    trendDescription: 'เปรียบเทียบรายรับและรายจ่ายรายวัน',
+    trendEmptyTitle: 'ยังไม่มีข้อมูลย้อนหลัง',
+    trendEmptyDescription: 'บันทึกรายรับหรือรายจ่ายเพื่อดูแนวโน้มรายวัน',
+    groupDescription: 'คำนวณจากกลุ่มของหมวดหมู่ในวันที่เลือก'
+  },
+  week: {
+    categoryDescription: 'สัดส่วนรายจ่ายของสัปดาห์ที่เลือก',
+    categoryEmptyTitle: 'ยังไม่มีรายจ่ายในสัปดาห์นี้',
+    trendTitle: 'แนวโน้ม 6 สัปดาห์',
+    trendDescription: 'เปรียบเทียบรายรับและรายจ่ายรายสัปดาห์',
+    trendEmptyTitle: 'ยังไม่มีข้อมูลย้อนหลัง',
+    trendEmptyDescription: 'บันทึกรายรับหรือรายจ่ายเพื่อดูแนวโน้มรายสัปดาห์',
+    groupDescription: 'คำนวณจากกลุ่มของหมวดหมู่ในสัปดาห์ที่เลือก'
+  },
+  month: {
+    categoryDescription: 'สัดส่วนรายจ่ายของเดือนที่เลือก',
+    categoryEmptyTitle: 'ยังไม่มีรายจ่ายในเดือนนี้',
+    trendTitle: 'แนวโน้ม 6 เดือน',
+    trendDescription: 'เปรียบเทียบรายรับและรายจ่ายย้อนหลัง',
+    trendEmptyTitle: 'ยังไม่มีข้อมูลย้อนหลัง',
+    trendEmptyDescription: 'บันทึกรายรับหรือรายจ่ายเพื่อดูแนวโน้มรายเดือน',
+    groupDescription: 'คำนวณจากกลุ่มของหมวดหมู่ในเดือนที่เลือก'
+  },
+  year: {
+    categoryDescription: 'สัดส่วนรายจ่ายของปีที่เลือก',
+    categoryEmptyTitle: 'ยังไม่มีรายจ่ายในปีนี้',
+    trendTitle: 'แนวโน้ม 5 ปี',
+    trendDescription: 'เปรียบเทียบรายรับและรายจ่ายรายปี',
+    trendEmptyTitle: 'ยังไม่มีข้อมูลย้อนหลัง',
+    trendEmptyDescription: 'บันทึกรายรับหรือรายจ่ายเพื่อดูแนวโน้มรายปี',
+    groupDescription: 'คำนวณจากกลุ่มของหมวดหมู่ในปีที่เลือก'
+  }
+};
+
 export default function Stats() {
   const [rangeMode, setRangeMode] = useState('month');
   const [anchor, setAnchor] = useState(new Date());
-  const selectedBounds = useMemo(() => getRangeBounds('month', anchor), [anchor]);
-  const trendMonths = useMemo(() => getTrendMonths(anchor), [anchor]);
+  const copy = rangeCopy[rangeMode];
+  const selectedBounds = useMemo(() => getRangeBounds(rangeMode, anchor), [anchor, rangeMode]);
+  const trendBuckets = useMemo(() => getTrendBuckets(rangeMode, anchor), [anchor, rangeMode]);
   const trendBounds = useMemo(
-    () => getQueryBounds('month', anchor),
-    [anchor]
+    () => getQueryBounds(rangeMode, anchor),
+    [anchor, rangeMode]
   );
   const { transactions, loading, error } = useTransactions(trendBounds);
 
@@ -72,7 +123,7 @@ export default function Stats() {
   );
   const categoryData = useMemo(() => buildCategoryData(selectedExpenses), [selectedExpenses]);
   const totalExpense = useMemo(() => categoryData.reduce((sum, item) => sum + item.amount, 0), [categoryData]);
-  const trendData = useMemo(() => buildTrendData(transactions, trendMonths), [transactions, trendMonths]);
+  const trendData = useMemo(() => buildTrendData(transactions, trendBuckets, rangeMode), [rangeMode, transactions, trendBuckets]);
   const trendYAxis = useMemo(() => {
     const max = Math.max(0, ...trendData.flatMap((row) => [row.income, row.expense]));
     const niceMax = niceCeil(max);
@@ -106,11 +157,11 @@ export default function Stats() {
 
       <div className="mt-5 grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
         <section className="min-w-0 rounded-2xl bg-white p-4 shadow-soft md:p-5">
-          <SectionHeader title="รายจ่ายตามหมวด" description="สัดส่วนรายจ่ายของเดือนที่เลือก" />
+          <SectionHeader title="รายจ่ายตามหมวด" description={copy.categoryDescription} />
 
           {!loading && categoryData.length === 0 ? (
             <div className="grid min-h-[20rem] place-items-center">
-              <EmptyState title="ยังไม่มีรายจ่ายในเดือนนี้" description="เมื่อบันทึกรายจ่ายแล้ว กราฟโดนัทจะแสดงสัดส่วนตามหมวดหมู่" />
+              <EmptyState title={copy.categoryEmptyTitle} description="เมื่อบันทึกรายจ่ายแล้ว กราฟโดนัทจะแสดงสัดส่วนตามหมวดหมู่" />
             </div>
           ) : null}
 
@@ -150,11 +201,11 @@ export default function Stats() {
         </section>
 
         <section className="flex min-w-0 flex-col overflow-hidden rounded-2xl bg-white p-4 shadow-soft md:p-5">
-          <SectionHeader title="แนวโน้ม 6 เดือน" description="เปรียบเทียบรายรับและรายจ่ายย้อนหลัง" />
+          <SectionHeader title={copy.trendTitle} description={copy.trendDescription} />
 
           {!loading && !hasTrendData ? (
             <div className="grid flex-1 min-h-[20rem] place-items-center">
-              <EmptyState title="ยังไม่มีข้อมูลย้อนหลัง" description="บันทึกรายรับหรือรายจ่ายเพื่อดูแนวโน้มรายเดือน" />
+              <EmptyState title={copy.trendEmptyTitle} description={copy.trendEmptyDescription} />
             </div>
           ) : null}
 
@@ -197,7 +248,7 @@ export default function Stats() {
       </div>
 
       <section className="mt-5">
-        <SectionHeader title="สรุปรายจ่าย 4 กลุ่ม" description="คำนวณจากกลุ่มของหมวดหมู่ในเดือนที่เลือก" />
+        <SectionHeader title="สรุปรายจ่าย 4 กลุ่ม" description={copy.groupDescription} />
         <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {groupData.map((group) => (
             <GroupCard key={group.key} group={group} />
@@ -253,9 +304,10 @@ function MoneyTooltip({ active, payload }) {
 
 function TrendTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
+  const tooltipLabel = payload[0].payload.tooltipLabel || label;
   return (
     <div className="rounded-2xl border border-[#EAD8CA] bg-white px-3 py-2 text-sm shadow-soft">
-      <p className="font-bold">{label}</p>
+      <p className="font-bold">{tooltipLabel}</p>
       {payload.map((item) => (
         <p key={item.dataKey} className="font-semibold" style={{ color: item.color }}>
           {item.name}: {baht(item.value)}
@@ -293,17 +345,18 @@ function buildCategoryData(expenses) {
     }));
 }
 
-function buildTrendData(transactions, trendMonths) {
-  const rows = trendMonths.map((month) => ({
-    key: month.key,
-    label: month.label,
+function buildTrendData(transactions, trendBuckets, mode) {
+  const rows = trendBuckets.map((bucket) => ({
+    key: bucket.key,
+    label: bucket.label,
+    tooltipLabel: bucket.tooltipLabel,
     income: 0,
     expense: 0
   }));
   const rowMap = Object.fromEntries(rows.map((row) => [row.key, row]));
 
   transactions.forEach((transaction) => {
-    const row = rowMap[transaction.txn_date.slice(0, 7)];
+    const row = rowMap[getTrendKey(mode, transaction.txn_date)];
     if (!row) return;
     const amount = Number(transaction.amount || 0);
     if (transaction.type === 'income') row.income += amount;
@@ -338,16 +391,72 @@ function buildGroupData(expenses) {
   };
 }
 
-function getTrendMonths(month) {
-  const selectedMonth = startOfMonth(month);
+function getTrendBuckets(mode, anchor) {
+  if (mode === 'day') {
+    return Array.from({ length: 7 }, (_, index) => {
+      const date = addDays(anchor, index - 6);
+      return {
+        date,
+        key: format(date, 'yyyy-MM-dd'),
+        label: format(date, 'EEEEEE', { locale: th }),
+        tooltipLabel: formatThaiDate(date, 'EEEE d MMM yyyy')
+      };
+    });
+  }
+
+  if (mode === 'week') {
+    const selectedWeek = startOfWeek(anchor, { weekStartsOn: 1 });
+    return Array.from({ length: 6 }, (_, index) => {
+      const date = addWeeks(selectedWeek, index - 5);
+      const end = addDays(date, 6);
+      return {
+        date,
+        key: format(date, 'yyyy-MM-dd'),
+        label: String(getISOWeek(date)),
+        tooltipLabel: `สัปดาห์ที่ ${getISOWeek(date)} (${formatWeekTooltipRange(date, end)})`
+      };
+    });
+  }
+
+  if (mode === 'year') {
+    const selectedYear = startOfYear(anchor);
+    return Array.from({ length: 5 }, (_, index) => {
+      const date = addYears(selectedYear, index - 4);
+      return {
+        date,
+        key: format(date, 'yyyy'),
+        label: formatThaiDate(date, 'yyyy'),
+        tooltipLabel: `พ.ศ. ${formatThaiDate(date, 'yyyy')}`
+      };
+    });
+  }
+
+  const selectedMonth = startOfMonth(anchor);
   return Array.from({ length: 6 }, (_, index) => {
     const date = addMonths(selectedMonth, index - 5);
     return {
       date,
       key: format(date, 'yyyy-MM'),
-      label: format(date, 'MMM', { locale: th })
+      label: format(date, 'MMM', { locale: th }),
+      tooltipLabel: formatThaiDate(date, 'MMMM yyyy')
     };
   });
+}
+
+function getTrendKey(mode, txnDate) {
+  if (mode === 'day') return txnDate;
+  if (mode === 'week') return format(startOfWeek(parseISO(txnDate), { weekStartsOn: 1 }), 'yyyy-MM-dd');
+  if (mode === 'year') return txnDate.slice(0, 4);
+  return txnDate.slice(0, 7);
+}
+
+function formatWeekTooltipRange(start, end) {
+  const sameYear = format(start, 'yyyy') === format(end, 'yyyy');
+  const sameMonth = sameYear && format(start, 'MM') === format(end, 'MM');
+
+  if (sameMonth) return `${format(start, 'd', { locale: th })} – ${formatThaiDate(end, 'd MMM yyyy')}`;
+  if (sameYear) return `${formatThaiDate(start, 'd MMM')} – ${formatThaiDate(end, 'd MMM yyyy')}`;
+  return `${formatThaiDate(start, 'd MMM yyyy')} – ${formatThaiDate(end, 'd MMM yyyy')}`;
 }
 
 function allocateWholePercent(values) {
