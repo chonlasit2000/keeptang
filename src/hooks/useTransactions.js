@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { useAuth } from '../contexts/AuthContext.jsx';
 
@@ -19,31 +19,50 @@ export function useTransactions({ startDate, endDate, categoryId } = {}) {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const requestIdRef = useRef(0);
 
   const loadTransactions = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
     if (!user) return;
     setLoading(true);
     setError('');
 
-    let query = supabase
-      .from('transactions')
-      .select(transactionSelect)
-      .order('txn_date', { ascending: false })
-      .order('created_at', { ascending: false });
+    const buildQuery = () => {
+      let query = supabase
+        .from('transactions')
+        .select(transactionSelect)
+        .order('txn_date', { ascending: false })
+        .order('created_at', { ascending: false });
 
-    if (startDate) query = query.gte('txn_date', startDate);
-    if (endDate) query = query.lte('txn_date', endDate);
-    if (categoryId) query = query.eq('category_id', categoryId);
+      if (startDate) query = query.gte('txn_date', startDate);
+      if (endDate) query = query.lte('txn_date', endDate);
+      if (categoryId) query = query.eq('category_id', categoryId);
 
-    const { data, error: fetchError } = await query;
+      return query;
+    };
 
-    if (fetchError) {
-      setError(fetchError.message);
-      setLoading(false);
-      return;
+    const pageSize = 1000;
+    const rows = [];
+    let from = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const { data, error: fetchError } = await buildQuery().range(from, from + pageSize - 1);
+      if (requestId !== requestIdRef.current) return;
+
+      if (fetchError) {
+        setError(fetchError.message);
+        setLoading(false);
+        return;
+      }
+
+      rows.push(...(data || []));
+      hasMore = Boolean(data && data.length === pageSize);
+      from += pageSize;
     }
 
-    setTransactions(data || []);
+    if (requestId !== requestIdRef.current) return;
+    setTransactions(rows);
     setLoading(false);
   }, [categoryId, endDate, startDate, user]);
 

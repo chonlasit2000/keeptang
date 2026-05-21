@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { addMonths, endOfMonth, format, startOfMonth } from 'date-fns';
+import { addMonths, format, startOfMonth } from 'date-fns';
 import { th } from 'date-fns/locale';
 import {
   Bar,
@@ -13,10 +13,12 @@ import {
   YAxis
 } from 'recharts';
 import Header from '../components/Header.jsx';
-import MonthPicker from '../components/MonthPicker.jsx';
 import EmptyState from '../components/EmptyState.jsx';
+import RangeNav from '../components/RangeNav.jsx';
+import RangeToggle from '../components/RangeToggle.jsx';
 import { useTransactions } from '../hooks/useTransactions.js';
-import { baht, monthBounds } from '../lib/format.js';
+import { clampAnchorToToday, getRangeBounds, getQueryBounds, shiftAnchor } from '../lib/dateRange.js';
+import { baht } from '../lib/format.js';
 
 const chartColors = {
   amber: '#F2B84B',
@@ -47,15 +49,13 @@ const groupMeta = {
 const groupOrder = ['need', 'want', 'saving', 'reward'];
 
 export default function Stats() {
-  const [month, setMonth] = useState(new Date());
-  const selectedBounds = useMemo(() => monthBounds(month), [month]);
-  const trendMonths = useMemo(() => getTrendMonths(month), [month]);
+  const [rangeMode, setRangeMode] = useState('month');
+  const [anchor, setAnchor] = useState(new Date());
+  const selectedBounds = useMemo(() => getRangeBounds('month', anchor), [anchor]);
+  const trendMonths = useMemo(() => getTrendMonths(anchor), [anchor]);
   const trendBounds = useMemo(
-    () => ({
-      startDate: format(startOfMonth(trendMonths[0].date), 'yyyy-MM-dd'),
-      endDate: format(endOfMonth(month), 'yyyy-MM-dd')
-    }),
-    [month, trendMonths]
+    () => getQueryBounds('month', anchor),
+    [anchor]
   );
   const { transactions, loading, error } = useTransactions(trendBounds);
 
@@ -84,11 +84,22 @@ export default function Stats() {
   const groupSummary = useMemo(() => buildGroupData(selectedExpenses), [selectedExpenses]);
   const groupData = groupSummary.groups;
   const hasTrendData = trendData.some((item) => item.income > 0 || item.expense > 0);
+  const handleRangeModeChange = (nextMode) => {
+    setRangeMode(nextMode);
+    setAnchor((current) => clampAnchorToToday(nextMode, current));
+  };
+  const handlePrev = () => {
+    setAnchor((current) => shiftAnchor(rangeMode, current, -1));
+  };
+  const handleNext = () => {
+    setAnchor((current) => clampAnchorToToday(rangeMode, shiftAnchor(rangeMode, current, 1)));
+  };
 
   return (
     <div>
       <Header eyebrow="สถิติ" title="เห็นภาพรวมเงินของคุณ" />
-      <MonthPicker value={month} onChange={setMonth} />
+      <RangeToggle value={rangeMode} onChange={handleRangeModeChange} />
+      <RangeNav mode={rangeMode} anchor={anchor} onPrev={handlePrev} onNext={handleNext} />
 
       {error ? <p className="mt-4 rounded-2xl bg-expenseSoft p-4 text-sm font-semibold text-expense">{error}</p> : null}
       {loading ? <p className="mt-4 text-sm font-semibold text-muted">กำลังโหลดสถิติ...</p> : null}
