@@ -90,3 +90,18 @@ export function clampAnchorToToday(mode, anchor) {
   const today = new Date();
   return getRangeBounds(mode, anchor).startDate > localDateString(today) ? today : anchor;
 }
+
+export function pickAnchorForMode(fromMode, toMode, currentAnchor) {
+  if (fromMode === toMode) return currentAnchor;
+
+  let candidate = currentAnchor;
+  if (toMode === 'day') {
+    if (fromMode === 'month') candidate = endOfMonth(currentAnchor);
+    else if (fromMode === 'year') candidate = endOfYear(currentAnchor);
+    else if (fromMode === 'week') candidate = endOfWeek(currentAnchor, weekOptions);
+  } else if (toMode === 'month' && fromMode === 'year') {
+    candidate = endOfYear(currentAnchor);
+  }
+
+  return clampAnchorToToday(toMode, candidate);
+}
