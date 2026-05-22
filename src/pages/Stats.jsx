@@ -192,7 +192,7 @@ export default function Stats() {
       {error ? <p className="mt-4 rounded-2xl bg-expenseSoft p-4 text-sm font-semibold text-expense">{error}</p> : null}
       {loading ? <p className="mt-4 text-sm font-semibold text-muted">กำลังโหลดสถิติ...</p> : null}
 
-      <div className="mt-5 grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
+      <div className="mt-5 grid gap-5 lg:items-start lg:grid-cols-[0.95fr_1.05fr]">
         <section className="min-w-0 rounded-2xl bg-white p-4 shadow-soft md:p-5">
           <SectionHeader title="รายจ่ายตามหมวด" description={copy.categoryDescription} />
 

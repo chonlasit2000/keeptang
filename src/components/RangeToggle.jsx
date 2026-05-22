@@ -16,7 +16,7 @@ export default function RangeToggle({ value, onChange }) {
             type="button"
             role="tab"
             aria-selected={active}
-            className={`min-h-[44px] rounded-[0.85rem] px-2 text-sm font-bold transition ${
+            className={`min-h-[44px] touch-manipulation rounded-[0.85rem] px-2 text-sm font-bold transition ${
               active ? 'bg-coral text-white shadow-[0_10px_22px_rgba(216,90,48,0.22)]' : 'text-muted hover:bg-cream'
             }`}
             onClick={() => onChange(option.value)}
