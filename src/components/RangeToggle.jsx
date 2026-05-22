@@ -1,3 +1,8 @@
+import { useRef } from 'react';
+
+const SCROLL_THRESHOLD_PX = 20;
+const SCROLL_THRESHOLD_SQ = SCROLL_THRESHOLD_PX * SCROLL_THRESHOLD_PX;
+
 const options = [
   { value: 'day', label: 'วัน' },
   { value: 'week', label: 'สัปดาห์' },
@@ -6,6 +11,34 @@ const options = [
 ];
 
 export default function RangeToggle({ value, onChange }) {
+  const touchStartRef = useRef(null);
+
+  const handleTouchStart = (event) => {
+    const touch = event.touches[0];
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+  };
+
+  const handleTouchMove = (event) => {
+    const start = touchStartRef.current;
+    if (!start) return;
+
+    const touch = event.touches[0];
+    const dx = touch.clientX - start.x;
+    const dy = touch.clientY - start.y;
+
+    if (dx * dx + dy * dy > SCROLL_THRESHOLD_SQ) {
+      touchStartRef.current = null;
+    }
+  };
+
+  const handleTouchEnd = (event, nextValue) => {
+    if (!touchStartRef.current) return;
+
+    touchStartRef.current = null;
+    event.preventDefault();
+    onChange(nextValue);
+  };
+
   return (
     <div className="mt-4 grid grid-cols-4 rounded-[1rem] bg-white p-1 shadow-soft" role="tablist" aria-label="เลือกช่วงเวลา">
       {options.map((option) => {
@@ -21,6 +54,9 @@ export default function RangeToggle({ value, onChange }) {
                 ? 'bg-coral text-white shadow-[0_10px_22px_rgba(216,90,48,0.22)]'
                 : 'text-muted active:bg-cream [@media(hover:hover)]:hover:bg-cream'
             }`}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={(event) => handleTouchEnd(event, option.value)}
             onClick={() => onChange(option.value)}
           >
             {option.label}
