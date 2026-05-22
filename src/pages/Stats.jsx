@@ -193,7 +193,7 @@ export default function Stats() {
       {loading ? <p className="mt-4 text-sm font-semibold text-muted">กำลังโหลดสถิติ...</p> : null}
 
       <div className="mt-5 grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
-        <section className="min-w-0 rounded-2xl bg-white p-4 shadow-soft md:p-5 lg:min-h-[28rem]">
+        <section className="min-w-0 rounded-2xl bg-white p-4 shadow-soft md:p-5">
           <SectionHeader title="รายจ่ายตามหมวด" description={copy.categoryDescription} />
 
           {!loading && categoryData.length === 0 ? (
@@ -237,7 +237,7 @@ export default function Stats() {
           ) : null}
         </section>
 
-        <section className="flex min-w-0 flex-col overflow-hidden rounded-2xl bg-white p-4 shadow-soft md:p-5 lg:min-h-[28rem]">
+        <section className="flex min-w-0 flex-col overflow-hidden rounded-2xl bg-white p-4 shadow-soft md:p-5">
           <SectionHeader title={copy.trendTitle} description={copy.trendDescription} />
 
           {!loading && !hasTrendData ? (
