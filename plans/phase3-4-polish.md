@@ -257,20 +257,22 @@ export function pickAnchorForMode(fromMode, toMode, currentAnchor) {
 ```jsx
 <section className="mt-5">
   <SectionHeader title="สรุปรายจ่าย 4 กลุ่ม" description={copy.groupDescription} />
-  {!isInitialLoading && totalExpense === 0 ? (
-    <div className="mt-3">
-      <EmptyState
-        title="ยังไม่มีรายจ่ายให้แยกกลุ่ม"
-        description="เมื่อมีรายจ่าย จะเห็นสัดส่วน 4 กลุ่ม (จำเป็น/ฟุ่มเฟือย/ออม/ให้รางวัล) ตรงนี้"
-      />
-    </div>
-  ) : (
-    <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      {groupData.map((group) => (
-        <GroupCard key={group.key} group={group} />
-      ))}
-    </div>
-  )}
+  {!isInitialLoading ? (
+    totalExpense === 0 ? (
+      <div className="mt-3">
+        <EmptyState
+          title="ยังไม่มีรายจ่ายให้แยกกลุ่ม"
+          description="เมื่อมีรายจ่าย จะเห็นสัดส่วน 4 กลุ่ม (จำเป็น/ฟุ่มเฟือย/ออม/ให้รางวัล) ตรงนี้"
+        />
+      </div>
+    ) : (
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {groupData.map((group) => (
+          <GroupCard key={group.key} group={group} />
+        ))}
+      </div>
+    )
+  ) : null}
   {groupSummary.ungroupedAmount > 0 ? (
     <p className="mt-3 rounded-2xl bg-cream p-3 text-xs font-semibold text-muted">
       มีรายจ่าย {baht(groupSummary.ungroupedAmount)} ที่ไม่มีข้อมูลกลุ่ม จึงไม่รวมในสรุป 4 กลุ่ม
@@ -278,6 +280,16 @@ export function pickAnchorForMode(fromMode, toMode, currentAnchor) {
   ) : null}
 </section>
 ```
+
+**Logic table:**
+
+| state | render |
+|---|---|
+| `isInitialLoading=true` | `null` (มีข้อความ `กำลังโหลดสถิติ...` ด้านบน section) |
+| `!isInitialLoading && totalExpense === 0` | EmptyState |
+| `!isInitialLoading && totalExpense > 0` | 4 GroupCards |
+
+หลีกเลี่ยง bug ที่ flat `!isInitialLoading && totalExpense === 0 ? Empty : Grid` จะ render grid 4 ใบเป็น `฿0` ระหว่าง initial loading (เพราะ condition แรกเป็น false → fall through ไป grid)
 
 - Copy ภาษาไทย consistent กับ donut empty state (`ยังไม่มีรายจ่ายใน...`)
 - ห้ามแก้ `GroupCard` component (เผื่อ Phase 4 budget reuse)
@@ -339,6 +351,7 @@ export function pickAnchorForMode(fromMode, toMode, currentAnchor) {
 4. [ ] **Group card empty state:**
    - เลือกวันที่ไม่มีรายจ่าย (Day mode) → เห็น EmptyState ใต้ "สรุปรายจ่าย 4 กลุ่ม" ไม่เห็น 4 cards เป็น `฿0`
    - เลือกวันที่มีรายจ่าย → 4 cards กลับมาเหมือนเดิม
+   - **Initial loading (hard refresh หน้า /stats)** → section "สรุปรายจ่าย 4 กลุ่ม" ไม่ render grid `฿0` 4 ใบระหว่างโหลด — ให้ render `null` (มี `กำลังโหลดสถิติ...` ด้านบนพอ)
 5. [ ] **Next button disable** (verify ไม่ regress):
    - Day/Week/Month/Year ปัจจุบัน → ปุ่ม `▶` disabled
 6. [ ] **Month mode (Phase 2) regression check:**
