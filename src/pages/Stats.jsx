@@ -254,7 +254,7 @@ export default function Stats() {
           <section className="min-w-0 rounded-2xl bg-white p-4 shadow-soft md:p-5">
             <SectionHeader title="รายจ่ายตามหมวด" description={copy.categoryDescription} />
 
-            {!isInitialLoading && !loading && categoryData.length === 0 ? (
+            {!isInitialLoading && categoryData.length === 0 ? (
               <div className="grid min-h-[20rem] place-items-center">
                 <EmptyState title={copy.categoryEmptyTitle} description="เมื่อบันทึกรายจ่ายแล้ว กราฟโดนัทจะแสดงสัดส่วนตามหมวดหมู่" />
               </div>
@@ -298,7 +298,7 @@ export default function Stats() {
           <section className="flex min-w-0 flex-col overflow-hidden rounded-2xl bg-white p-4 shadow-soft md:p-5">
             <SectionHeader title={copy.trendTitle} description={copy.trendDescription} />
 
-            {!isInitialLoading && !loading && !hasTrendData ? (
+            {!isInitialLoading && !hasTrendData ? (
               <div className="grid flex-1 min-h-[20rem] place-items-center">
                 <EmptyState title={copy.trendEmptyTitle} description={copy.trendEmptyDescription} />
               </div>
@@ -375,7 +375,7 @@ export default function Stats() {
 
           {error ? null : (
             <div className="mt-3">
-              {!isInitialLoading && !loading && selectedTransactions.length === 0 ? (
+              {!isInitialLoading && selectedTransactions.length === 0 ? (
                 <EmptyState title="ไม่มีรายการในช่วงนี้" description="ลองเลือกช่วงเวลาอื่น หรือเพิ่มรายการใหม่เพื่อดูรายละเอียดตรงนี้" />
               ) : null}
 
@@ -397,7 +397,7 @@ export default function Stats() {
                 </div>
               ) : null}
 
-              {!isInitialLoading && !loading && selectedTransactions.length > 0 && !hasMoreTransactions ? (
+              {!isInitialLoading && selectedTransactions.length > 0 && !hasMoreTransactions ? (
                 <p className="mt-3 text-center text-xs font-semibold text-muted">
                   แสดงครบทั้งหมด {selectedTransactions.length} รายการ
                 </p>
