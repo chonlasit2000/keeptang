@@ -23,6 +23,7 @@ import {
   XAxis,
   YAxis
 } from 'recharts';
+import { Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import CategoryBadge from '../components/CategoryBadge.jsx';
 import Header from '../components/Header.jsx';
@@ -30,7 +31,14 @@ import EmptyState from '../components/EmptyState.jsx';
 import RangeNav from '../components/RangeNav.jsx';
 import RangeToggle from '../components/RangeToggle.jsx';
 import { useTransactions } from '../hooks/useTransactions.js';
-import { clampAnchorToToday, formatThaiDate, getRangeBounds, getQueryBounds, shiftAnchor } from '../lib/dateRange.js';
+import {
+  clampAnchorToToday,
+  formatThaiDate,
+  getRangeBounds,
+  getQueryBounds,
+  pickAnchorForMode,
+  shiftAnchor
+} from '../lib/dateRange.js';
 import { baht } from '../lib/format.js';
 
 const chartColors = {
@@ -105,24 +113,35 @@ export default function Stats() {
   const navigate = useNavigate();
   const [rangeMode, setRangeMode] = useState('month');
   const [anchor, setAnchor] = useState(new Date());
+  const [committedRange, setCommittedRange] = useState(() => ({ mode: 'month', anchor: new Date() }));
+  const [committedTransactions, setCommittedTransactions] = useState([]);
+  const [hasPending, setHasPending] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [visibleCount, setVisibleCount] = useState(transactionPageSize);
+  const prevLoadingRef = useRef(false);
   const loadingMoreRef = useRef(false);
   const sentinelRef = useRef(null);
-  const copy = rangeCopy[rangeMode];
-  const selectedBounds = useMemo(() => getRangeBounds(rangeMode, anchor), [anchor, rangeMode]);
-  const trendBuckets = useMemo(() => getTrendBuckets(rangeMode, anchor), [anchor, rangeMode]);
-  const trendBounds = useMemo(
+  const copy = rangeCopy[committedRange.mode];
+  const selectedBounds = useMemo(
+    () => getRangeBounds(committedRange.mode, committedRange.anchor),
+    [committedRange.anchor, committedRange.mode]
+  );
+  const trendBuckets = useMemo(
+    () => getTrendBuckets(committedRange.mode, committedRange.anchor),
+    [committedRange.anchor, committedRange.mode]
+  );
+  const queryBounds = useMemo(
     () => getQueryBounds(rangeMode, anchor),
     [anchor, rangeMode]
   );
-  const { transactions, loading, error } = useTransactions(trendBounds);
+  const { transactions, loading, error } = useTransactions(queryBounds);
 
   const selectedTransactions = useMemo(
     () =>
-      transactions.filter(
+      committedTransactions.filter(
         (transaction) => transaction.txn_date >= selectedBounds.startDate && transaction.txn_date <= selectedBounds.endDate
       ),
-    [selectedBounds.endDate, selectedBounds.startDate, transactions]
+    [committedTransactions, selectedBounds.endDate, selectedBounds.startDate]
   );
   const selectedExpenses = useMemo(
     () => selectedTransactions.filter((transaction) => transaction.type === 'expense'),
@@ -130,7 +149,10 @@ export default function Stats() {
   );
   const categoryData = useMemo(() => buildCategoryData(selectedExpenses), [selectedExpenses]);
   const totalExpense = useMemo(() => categoryData.reduce((sum, item) => sum + item.amount, 0), [categoryData]);
-  const trendData = useMemo(() => buildTrendData(transactions, trendBuckets, rangeMode), [rangeMode, transactions, trendBuckets]);
+  const trendData = useMemo(
+    () => buildTrendData(committedTransactions, trendBuckets, committedRange.mode),
+    [committedRange.mode, committedTransactions, trendBuckets]
+  );
   const trendYAxis = useMemo(() => {
     const max = Math.max(0, ...trendData.flatMap((row) => [row.income, row.expense]));
     const niceMax = niceCeil(max);
@@ -147,20 +169,49 @@ export default function Stats() {
     [selectedTransactions, visibleCount]
   );
   const hasMoreTransactions = visibleCount < selectedTransactions.length;
-  const handleRangeModeChange = (nextMode) => {
+  const updateRange = (nextMode, nextAnchor) => {
+    const currentBounds = getRangeBounds(rangeMode, anchor);
+    const nextBounds = getRangeBounds(nextMode, nextAnchor);
+    if (
+      nextMode === rangeMode &&
+      currentBounds.startDate === nextBounds.startDate &&
+      currentBounds.endDate === nextBounds.endDate
+    ) {
+      return;
+    }
+
     setRangeMode(nextMode);
-    setAnchor((current) => clampAnchorToToday(nextMode, current));
+    setAnchor(nextAnchor);
+    setHasPending(true);
+  };
+  const handleRangeModeChange = (nextMode) => {
+    updateRange(nextMode, pickAnchorForMode(rangeMode, nextMode, anchor));
   };
   const handlePrev = () => {
-    setAnchor((current) => shiftAnchor(rangeMode, current, -1));
+    updateRange(rangeMode, shiftAnchor(rangeMode, anchor, -1));
   };
   const handleNext = () => {
-    setAnchor((current) => clampAnchorToToday(rangeMode, shiftAnchor(rangeMode, current, 1)));
+    updateRange(rangeMode, clampAnchorToToday(rangeMode, shiftAnchor(rangeMode, anchor, 1)));
   };
+  const isInitialLoading = !hasLoadedOnce && !error;
+  const isRefetching = hasLoadedOnce && (loading || hasPending);
 
   useEffect(() => {
     setVisibleCount(transactionPageSize);
   }, [selectedBounds.endDate, selectedBounds.startDate]);
+
+  useEffect(() => {
+    const wasLoading = prevLoadingRef.current;
+    prevLoadingRef.current = loading;
+    if (!wasLoading || loading) return;
+
+    if (!error) {
+      setCommittedRange({ mode: rangeMode, anchor });
+      setCommittedTransactions(transactions);
+      setHasLoadedOnce(true);
+    }
+    setHasPending(false);
+  }, [anchor, error, loading, rangeMode, transactions]);
 
   useEffect(() => {
     if (!hasMoreTransactions || typeof IntersectionObserver === 'undefined') return undefined;
@@ -190,152 +241,171 @@ export default function Stats() {
       <RangeNav mode={rangeMode} anchor={anchor} onPrev={handlePrev} onNext={handleNext} />
 
       {error ? <p className="mt-4 rounded-2xl bg-expenseSoft p-4 text-sm font-semibold text-expense">{error}</p> : null}
-      {loading ? <p className="mt-4 text-sm font-semibold text-muted">กำลังโหลดสถิติ...</p> : null}
+      {isInitialLoading ? <p className="mt-4 text-sm font-semibold text-muted">กำลังโหลดสถิติ...</p> : null}
+      {isRefetching ? (
+        <p className="mt-2 flex items-center gap-2 text-xs font-semibold text-muted">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          กำลังโหลดข้อมูลช่วงใหม่...
+        </p>
+      ) : null}
 
-      <div className="mt-5 grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
-        <section className="min-w-0 rounded-2xl bg-white p-4 shadow-soft md:p-5">
-          <SectionHeader title="รายจ่ายตามหมวด" description={copy.categoryDescription} />
+      <div className={`transition-opacity duration-200 ${isRefetching ? 'pointer-events-none opacity-50' : ''}`}>
+        <div className="mt-5 grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
+          <section className="min-w-0 rounded-2xl bg-white p-4 shadow-soft md:p-5">
+            <SectionHeader title="รายจ่ายตามหมวด" description={copy.categoryDescription} />
 
-          {!loading && categoryData.length === 0 ? (
-            <div className="grid min-h-[20rem] place-items-center">
-              <EmptyState title={copy.categoryEmptyTitle} description="เมื่อบันทึกรายจ่ายแล้ว กราฟโดนัทจะแสดงสัดส่วนตามหมวดหมู่" />
-            </div>
-          ) : null}
+            {!isInitialLoading && !loading && categoryData.length === 0 ? (
+              <div className="grid min-h-[20rem] place-items-center">
+                <EmptyState title={copy.categoryEmptyTitle} description="เมื่อบันทึกรายจ่ายแล้ว กราฟโดนัทจะแสดงสัดส่วนตามหมวดหมู่" />
+              </div>
+            ) : null}
 
-          {categoryData.length > 0 ? (
-            <div className="mt-4 grid gap-5 md:grid-cols-[13rem_1fr] lg:grid-cols-1">
-              <div className="keeptang-chart relative mx-auto h-52 w-52">
-                <PieChart width={208} height={208} margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
-                  <Pie data={categoryData} dataKey="amount" nameKey="name" innerRadius={62} outerRadius={92} paddingAngle={3}>
-                    {categoryData.map((item) => (
-                      <Cell key={item.name} fill={item.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<MoneyTooltip />} offset={16} wrapperStyle={{ pointerEvents: 'none', zIndex: 10 }} />
-                </PieChart>
-                <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">
-                  <div>
-                    <p className="text-xs font-bold text-muted">รวมรายจ่าย</p>
-                    <p className="mt-1 text-xl font-bold text-expense">{baht(totalExpense)}</p>
+            {categoryData.length > 0 ? (
+              <div className="mt-4 grid gap-5 md:grid-cols-[13rem_1fr] lg:grid-cols-1">
+                <div className="keeptang-chart relative mx-auto h-52 w-52">
+                  <PieChart width={208} height={208} margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+                    <Pie data={categoryData} dataKey="amount" nameKey="name" innerRadius={62} outerRadius={92} paddingAngle={3}>
+                      {categoryData.map((item) => (
+                        <Cell key={item.name} fill={item.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip content={<MoneyTooltip />} offset={16} wrapperStyle={{ pointerEvents: 'none', zIndex: 10 }} />
+                  </PieChart>
+                  <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">
+                    <div>
+                      <p className="text-xs font-bold text-muted">รวมรายจ่าย</p>
+                      <p className="mt-1 text-xl font-bold text-expense">{baht(totalExpense)}</p>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="space-y-3 lg:max-h-[20rem] lg:overflow-y-auto lg:pr-1">
-                {categoryData.map((item) => (
-                  <div key={item.name} className="flex items-center gap-3 rounded-2xl bg-cream p-3">
-                    <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
-                    <div className="min-w-0 flex-1">
-                      <p className="break-words text-sm font-bold leading-snug">{item.name}</p>
-                      <p className="text-xs font-semibold text-muted">{item.percent.toFixed(1)}%</p>
+                <div className="space-y-3 lg:max-h-[20rem] lg:overflow-y-auto lg:pr-1">
+                  {categoryData.map((item) => (
+                    <div key={item.name} className="flex items-center gap-3 rounded-2xl bg-cream p-3">
+                      <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
+                      <div className="min-w-0 flex-1">
+                        <p className="break-words text-sm font-bold leading-snug">{item.name}</p>
+                        <p className="text-xs font-semibold text-muted">{item.percent.toFixed(1)}%</p>
+                      </div>
+                      <p className="shrink-0 text-sm font-bold text-expense">{baht(item.amount)}</p>
                     </div>
-                    <p className="shrink-0 text-sm font-bold text-expense">{baht(item.amount)}</p>
-                  </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </section>
+
+          <section className="flex min-w-0 flex-col overflow-hidden rounded-2xl bg-white p-4 shadow-soft md:p-5">
+            <SectionHeader title={copy.trendTitle} description={copy.trendDescription} />
+
+            {!isInitialLoading && !loading && !hasTrendData ? (
+              <div className="grid flex-1 min-h-[20rem] place-items-center">
+                <EmptyState title={copy.trendEmptyTitle} description={copy.trendEmptyDescription} />
+              </div>
+            ) : null}
+
+            {hasTrendData ? (
+              <div className="keeptang-chart mt-5 flex-1 min-h-[16rem] w-full max-w-full min-w-0 overflow-hidden">
+                <BarChart
+                  responsive
+                  style={{ width: '100%', height: '100%', minWidth: 0 }}
+                  data={trendData}
+                  margin={{ top: 20, right: 12, bottom: 0, left: 0 }}
+                  barCategoryGap="10%"
+                  barGap={6}
+                >
+                  <CartesianGrid stroke="#F0DED1" vertical={false} />
+                  <XAxis
+                    dataKey="label"
+                    interval={0}
+                    minTickGap={0}
+                    padding={{ left: 0, right: 0 }}
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fill: '#8B7569', fontSize: 10, fontWeight: 700 }}
+                  />
+                  <YAxis
+                    domain={trendYAxis.domain}
+                    ticks={trendYAxis.ticks}
+                    width={56}
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fill: '#8B7569', fontSize: 11, fontWeight: 600 }}
+                    tickFormatter={bahtAxisLabel}
+                  />
+                  <Tooltip content={<TrendTooltip />} cursor={{ fill: '#FBF3E7' }} />
+                  <Bar dataKey="income" name="รายรับ" fill={toneColors.income} radius={[10, 10, 4, 4]} maxBarSize={32} />
+                  <Bar dataKey="expense" name="รายจ่าย" fill={toneColors.expense} radius={[10, 10, 4, 4]} maxBarSize={32} />
+                </BarChart>
+              </div>
+            ) : null}
+          </section>
+        </div>
+
+        <section className="mt-5">
+          <SectionHeader title="สรุปรายจ่าย 4 กลุ่ม" description={copy.groupDescription} />
+          {!isInitialLoading ? (
+            totalExpense === 0 ? (
+              <div className="mt-3">
+                <EmptyState
+                  title="ยังไม่มีรายจ่ายให้แยกกลุ่ม"
+                  description="เมื่อมีรายจ่าย จะเห็นสัดส่วน 4 กลุ่ม (จำเป็น/ฟุ่มเฟือย/ออม/ให้รางวัล) ตรงนี้"
+                />
+              </div>
+            ) : (
+              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {groupData.map((group) => (
+                  <GroupCard key={group.key} group={group} />
                 ))}
               </div>
-            </div>
+            )
+          ) : null}
+          {groupSummary.ungroupedAmount > 0 ? (
+            <p className="mt-3 rounded-2xl bg-cream p-3 text-xs font-semibold text-muted">
+              มีรายจ่าย {baht(groupSummary.ungroupedAmount)} ที่ไม่มีข้อมูลกลุ่ม จึงไม่รวมในสรุป 4 กลุ่ม
+            </p>
           ) : null}
         </section>
 
-        <section className="flex min-w-0 flex-col overflow-hidden rounded-2xl bg-white p-4 shadow-soft md:p-5">
-          <SectionHeader title={copy.trendTitle} description={copy.trendDescription} />
+        <section className="mt-5">
+          <SectionHeader
+            title={`รายการในช่วงนี้ (${selectedTransactions.length} รายการ)`}
+            description="โน้ตและรายละเอียดรายการที่อยู่ในช่วงเวลาที่เลือก"
+          />
 
-          {!loading && !hasTrendData ? (
-            <div className="grid flex-1 min-h-[20rem] place-items-center">
-              <EmptyState title={copy.trendEmptyTitle} description={copy.trendEmptyDescription} />
-            </div>
-          ) : null}
+          {error ? null : (
+            <div className="mt-3">
+              {!isInitialLoading && !loading && selectedTransactions.length === 0 ? (
+                <EmptyState title="ไม่มีรายการในช่วงนี้" description="ลองเลือกช่วงเวลาอื่น หรือเพิ่มรายการใหม่เพื่อดูรายละเอียดตรงนี้" />
+              ) : null}
 
-          {hasTrendData ? (
-            <div className="keeptang-chart mt-5 flex-1 min-h-[16rem] w-full max-w-full min-w-0 overflow-hidden">
-              <BarChart
-                responsive
-                style={{ width: '100%', height: '100%', minWidth: 0 }}
-                data={trendData}
-                margin={{ top: 20, right: 12, bottom: 0, left: 0 }}
-                barCategoryGap="10%"
-                barGap={6}
-              >
-                <CartesianGrid stroke="#F0DED1" vertical={false} />
-                <XAxis
-                  dataKey="label"
-                  interval={0}
-                  minTickGap={0}
-                  padding={{ left: 0, right: 0 }}
-                  tickLine={false}
-                  axisLine={false}
-                  tick={{ fill: '#8B7569', fontSize: 10, fontWeight: 700 }}
-                />
-                <YAxis
-                  domain={trendYAxis.domain}
-                  ticks={trendYAxis.ticks}
-                  width={56}
-                  tickLine={false}
-                  axisLine={false}
-                  tick={{ fill: '#8B7569', fontSize: 11, fontWeight: 600 }}
-                  tickFormatter={bahtAxisLabel}
-                />
-                <Tooltip content={<TrendTooltip />} cursor={{ fill: '#FBF3E7' }} />
-                <Bar dataKey="income" name="รายรับ" fill={toneColors.income} radius={[10, 10, 4, 4]} maxBarSize={32} />
-                <Bar dataKey="expense" name="รายจ่าย" fill={toneColors.expense} radius={[10, 10, 4, 4]} maxBarSize={32} />
-              </BarChart>
+              {visibleTransactions.length > 0 ? (
+                <div className="space-y-2">
+                  {visibleTransactions.map((transaction) => (
+                    <StatsTxnRow
+                      key={transaction.id}
+                      transaction={transaction}
+                      onClick={() => navigate(`/edit/${transaction.id}`)}
+                    />
+                  ))}
+                </div>
+              ) : null}
+
+              {hasMoreTransactions ? (
+                <div ref={sentinelRef} className="grid min-h-[4rem] place-items-center">
+                  <p className="text-xs font-semibold text-muted">กำลังโหลดรายการเพิ่ม...</p>
+                </div>
+              ) : null}
+
+              {!isInitialLoading && !loading && selectedTransactions.length > 0 && !hasMoreTransactions ? (
+                <p className="mt-3 text-center text-xs font-semibold text-muted">
+                  แสดงครบทั้งหมด {selectedTransactions.length} รายการ
+                </p>
+              ) : null}
             </div>
-          ) : null}
+          )}
         </section>
       </div>
-
-      <section className="mt-5">
-        <SectionHeader title="สรุปรายจ่าย 4 กลุ่ม" description={copy.groupDescription} />
-        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {groupData.map((group) => (
-            <GroupCard key={group.key} group={group} />
-          ))}
-        </div>
-        {groupSummary.ungroupedAmount > 0 ? (
-          <p className="mt-3 rounded-2xl bg-cream p-3 text-xs font-semibold text-muted">
-            มีรายจ่าย {baht(groupSummary.ungroupedAmount)} ที่ไม่มีข้อมูลกลุ่ม จึงไม่รวมในสรุป 4 กลุ่ม
-          </p>
-        ) : null}
-      </section>
-
-      <section className="mt-5">
-        <SectionHeader
-          title={`รายการในช่วงนี้ (${selectedTransactions.length} รายการ)`}
-          description="โน้ตและรายละเอียดรายการที่อยู่ในช่วงเวลาที่เลือก"
-        />
-
-        {error ? null : (
-          <div className="mt-3">
-            {!loading && selectedTransactions.length === 0 ? (
-              <EmptyState title="ไม่มีรายการในช่วงนี้" description="ลองเลือกช่วงเวลาอื่น หรือเพิ่มรายการใหม่เพื่อดูรายละเอียดตรงนี้" />
-            ) : null}
-
-            {visibleTransactions.length > 0 ? (
-              <div className="space-y-2">
-                {visibleTransactions.map((transaction) => (
-                  <StatsTxnRow
-                    key={transaction.id}
-                    transaction={transaction}
-                    onClick={() => navigate(`/edit/${transaction.id}`)}
-                  />
-                ))}
-              </div>
-            ) : null}
-
-            {hasMoreTransactions ? (
-              <div ref={sentinelRef} className="grid min-h-[4rem] place-items-center">
-                <p className="text-xs font-semibold text-muted">กำลังโหลดรายการเพิ่ม...</p>
-              </div>
-            ) : null}
-
-            {!loading && selectedTransactions.length > 0 && !hasMoreTransactions ? (
-              <p className="mt-3 text-center text-xs font-semibold text-muted">
-                แสดงครบทั้งหมด {selectedTransactions.length} รายการ
-              </p>
-            ) : null}
-          </div>
-        )}
-      </section>
     </div>
   );
 }
