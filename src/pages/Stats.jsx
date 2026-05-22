@@ -203,7 +203,7 @@ export default function Stats() {
           ) : null}
 
           {categoryData.length > 0 ? (
-            <div className="mt-4 grid gap-5 md:grid-cols-[13rem_1fr] lg:grid-cols-1">
+            <div className="mt-4 grid gap-5 md:grid-cols-[13rem_1fr]">
               <div className="keeptang-chart relative mx-auto h-52 w-52">
                 <PieChart width={208} height={208} margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
                   <Pie data={categoryData} dataKey="amount" nameKey="name" innerRadius={62} outerRadius={92} paddingAngle={3}>
