@@ -2,8 +2,33 @@
 
 **Branch:** `phase3`
 **Scope:** Bug fix เล็ก (CSS 1 บรรทัด)
-**Status:** Ready for Codex
+**Status:** ❌ **ABANDONED** — implement แล้ว revert (commit `74220e6` → `997f7fe`)
 **Predecessor:** `plans/stats-card-height.md` (merged แล้ว แต่แก้ไม่ครบ)
+
+---
+
+## ⚠️ Postmortem (อ่านก่อนคิดจะลองวิธีนี้อีก)
+
+ลองลบ `lg:grid-cols-1` ออกจริงๆ แล้ว ผลคือ **list column แคบเกินไป (~212px)** ชื่อหมวด wrap ตัวอักษรเดียวต่อบรรทัด อ่านไม่ได้เลย (ดู `KT เละ.png`)
+
+**Math ที่ plan v2 ประเมินผิด:**
+- AppShell ใช้ `max-w-5xl` = 1024px (ไม่ใช่ 1440px อย่างที่คาด)
+- Outer grid `lg:grid-cols-[0.95fr_1.05fr]` → left card = ~480px
+- หัก padding p-5 (40px) + donut column 13rem (208px) + gap (20px) → list = **~212px**
+- 212px แคบเกินไป — text content area เหลือเพียง ~80px หลังหัก dot/padding/amount
+
+**สรุป:** `lg:grid-cols-1` มีอยู่เพื่อให้ list ได้ width เต็ม card (~440px) → อ่านชื่อหมวดยาวได้
+
+**Trade-off ที่ยอมรับแล้ว:**
+- card สูง ~22-38rem ตามจำนวนหมวด (donut h-52 dominate)
+- day view มีพื้นที่ว่างใต้ list — **ยอม** เพราะ list อ่านง่ายสำคัญกว่า
+
+**ถ้าจะลองอีกครั้งในอนาคต**, approach ที่ยังไม่ลอง:
+- ลด donut size (`h-52` → `h-36`/`h-40`) + ลด text "รวมรายจ่าย/฿xxx" ในวง — ปัญหา: donut เล็กลงจน secondary
+- ขยาย `max-w-5xl` ของหน้า Stats เป็น 6xl/7xl — กระทบ design system ทั้ง project
+- รื้อโครง outer grid ratio (เช่น 1fr:0.8fr ให้ left card กว้างขึ้น) — chart ขวาแคบลง
+
+---
 
 ---
 
