@@ -9,7 +9,7 @@ export default function RangeNav({ mode, anchor, onPrev, onNext }) {
       <button
         type="button"
         aria-label="ช่วงก่อนหน้า"
-        className="grid h-11 w-11 place-items-center rounded-2xl text-coral"
+        className="grid h-11 w-11 touch-manipulation select-none place-items-center rounded-2xl text-coral [-webkit-tap-highlight-color:transparent]"
         onClick={onPrev}
       >
         <span className="grid h-10 w-10 place-items-center rounded-2xl bg-cream">
@@ -20,7 +20,7 @@ export default function RangeNav({ mode, anchor, onPrev, onNext }) {
       <button
         type="button"
         aria-label="ช่วงถัดไป"
-        className="grid h-11 w-11 place-items-center rounded-2xl text-coral disabled:cursor-not-allowed disabled:opacity-40"
+        className="grid h-11 w-11 touch-manipulation select-none place-items-center rounded-2xl text-coral [-webkit-tap-highlight-color:transparent] disabled:cursor-not-allowed disabled:opacity-40"
         onClick={onNext}
         disabled={nextDisabled}
       >
