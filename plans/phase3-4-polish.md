@@ -47,11 +47,11 @@ Phase 3.4 = แก้ 3 จุดนี้โดยไม่กระทบ Phas
 
 **Why this matters (จาก review):** ถ้าครอบแค่ overlay opacity แต่ปล่อยให้ `selectedBounds`, `trendBuckets`, `selectedTransactions`, `categoryData`, `copy` คำนวณจาก live `rangeMode/anchor` ทันที — ระหว่าง refetch เนื้อหาที่ dim **ไม่ใช่เนื้อหาเก่าจริง** แต่เป็น **bounds ใหม่ filter ของเก่า** → empty/ผิดได้ + EmptyState flash ได้
 
-**Approach — "committed range" + pending flag + loading transition:**
+**Approach — "committed view (range + transactions)" + pending flag + loading transition:**
 
 แยก state เป็น 2 ชั้น:
 - **Live state** (`rangeMode`, `anchor`) — update ทันทีเมื่อ user toggle/nav. ใช้สำหรับ RangeNav label + คำนวณ `queryBounds` ส่งเข้า `useTransactions`
-- **Committed state** (`committedRange = { mode, anchor }`) — update **เฉพาะตอน detect loading transition true → false** เท่านั้น (ไม่ใช่ "ทุกครั้งที่ !loading"). ใช้สำหรับ derived view (bounds, trendBuckets, copy, **rangeMode ที่ส่งเข้า buildTrendData**, ทุก useMemo ที่ feed กราฟ/รายการ)
+- **Committed state** (`committedRange = { mode, anchor }` + `committedTransactions: Transaction[]`) — update **คู่กันในเฟรมเดียว** เฉพาะตอน detect loading transition true → false. ใช้สำหรับ derived view (bounds, trendBuckets, copy, **rangeMode + transactions** ที่ส่งเข้า build* helpers)
 - **`hasPending` state** — set true ใน handler ทันทีตอน user เปลี่ยน range. clear เมื่อ commit สำเร็จ. ใช้คุม overlay ให้ขึ้น **ทันทีในเฟรมแรก** (ก่อนที่ hook จะมีโอกาส setLoading(true))
 
 **Why pending flag + transition detection (จาก review รอบ 2):**
@@ -59,10 +59,16 @@ Phase 3.4 = แก้ 3 จุดนี้โดยไม่กระทบ Phas
 - `isRefetching = loading && hasLoadedOnceRef.current` ก็เป็น false ใน render แรก → overlay ไม่ขึ้น ≥1 frame
 - แก้ทั้งคู่ด้วย: `pending` state ตั้งใน handler + เปรียบเทียบ `loading` กับ previous loading (`prevLoadingRef`) เพื่อ detect transition จริง
 
+**Why commit transactions ด้วย ไม่ใช่ range อย่างเดียว (จาก review รอบ 4):**
+- ตอน fetch สำเร็จ `useTransactions` ทำ `setTransactions(rows) + setLoading(false)` ใน batch เดียวกัน → ก่อน commit effect รัน จะมี **1 render frame** ที่ `transactions=NEW, loading=false, committedRange=OLD`
+- ระหว่าง frame นั้น overlay ยังขึ้น (hasPending=true) แต่ derived view ที่ใช้ `transactions` สด + `committedRange` เก่า = bucket/bounds เก่า ผสม data ใหม่ → กราฟ/list ผิด, EmptyState อาจโผล่ (ถ้าไม่กระทบ visual เพราะ overlay dim อยู่ก็ตาม แต่ไม่ตรงกับ goal "render มุมมองเดิมจริง")
+- แก้ด้วย `committedTransactions` state ที่ commit **คู่กับ `committedRange`** ในเฟรมเดียว → ทุก derived view freeze ครบชุด ไม่มี frame ผิด
+
 ```js
 const [rangeMode, setRangeMode] = useState('month');
 const [anchor, setAnchor] = useState(new Date());
 const [committedRange, setCommittedRange] = useState(() => ({ mode: 'month', anchor: new Date() }));
+const [committedTransactions, setCommittedTransactions] = useState([]);
 const [hasPending, setHasPending] = useState(false);
 const hasLoadedOnceRef = useRef(false);
 const prevLoadingRef = useRef(false);
@@ -100,22 +106,24 @@ const handleNext = () => updateRange(
 );
 
 // commit เฉพาะ true → false transition (ไม่ใช่ทุก render ที่ !loading)
+// commit range + transactions พร้อมกันในเฟรมเดียวกัน
 useEffect(() => {
   const wasLoading = prevLoadingRef.current;
   prevLoadingRef.current = loading;
   if (wasLoading && !loading) {
     if (!error) {
       setCommittedRange({ mode: rangeMode, anchor });
+      setCommittedTransactions(transactions);    // ⚠️ commit data คู่กับ range
       hasLoadedOnceRef.current = true;
     }
     setHasPending(false);            // clear แม้ error เพื่อปลด overlay
   }
-}, [loading, error, rangeMode, anchor]);
+}, [loading, error, rangeMode, anchor, transactions]);
 
 const isInitialLoading = loading && !hasLoadedOnceRef.current;
 const isRefetching = hasLoadedOnceRef.current && (loading || hasPending);
 
-// ทุก derived view อ่านจาก committedRange — stable ระหว่าง refetch
+// ทุก derived view อ่านจาก committedRange + committedTransactions — freeze ครบชุดระหว่าง refetch
 const selectedBounds = useMemo(
   () => getRangeBounds(committedRange.mode, committedRange.anchor),
   [committedRange]
@@ -126,23 +134,32 @@ const trendBuckets = useMemo(
 );
 const copy = rangeCopy[committedRange.mode];
 
-// ⚠️ trendData ต้องใช้ committedRange.mode (ไม่ใช่ live rangeMode)
-const trendData = useMemo(
-  () => buildTrendData(transactions, trendBuckets, committedRange.mode),
-  [transactions, trendBuckets, committedRange.mode]
+// ⚠️ ใช้ committedTransactions + committedRange.mode — ห้าม mix กับ live transactions/rangeMode
+const selectedTransactions = useMemo(
+  () =>
+    committedTransactions.filter(
+      (t) => t.txn_date >= selectedBounds.startDate && t.txn_date <= selectedBounds.endDate
+    ),
+  [committedTransactions, selectedBounds.startDate, selectedBounds.endDate]
 );
-// selectedTransactions, selectedExpenses, categoryData, totalExpense, groupData, visibleTransactions อ่านต่อจาก selectedBounds/committedRange ตามปกติ
+const trendData = useMemo(
+  () => buildTrendData(committedTransactions, trendBuckets, committedRange.mode),
+  [committedTransactions, trendBuckets, committedRange.mode]
+);
+// selectedExpenses, categoryData, totalExpense, groupData, visibleTransactions derive ต่อจาก selectedTransactions ตามปกติ — ไม่ต้องแก้
 ```
 
 **ลำดับเหตุการณ์ที่คาดหวัง (Month → Day toggle):**
 
-| Frame | event | live (mode/anchor) | committed | loading | hasPending | isRefetching | view ที่ render |
-|---|---|---|---|---|---|---|---|
-| 0 | idle | Month/Nov-15 | Month/Nov-15 | false | false | false | Month เต็มจอ |
-| 1 | click Day → updateRange | Day/today | Month/Nov-15 | false (stale) | **true** | **true** | Month + overlay ✅ |
-| 2 | hook starts query | Day/today | Month/Nov-15 | true | true | true | Month + overlay ✅ |
-| 3 | query done | Day/today | Month/Nov-15 | false | true | true (effect ยังไม่ run) | Month + overlay ✅ |
-| 4 | commit effect detect transition → setCommittedRange + setHasPending(false) | Day/today | **Day/today** | false | false | false | **Day** fresh ✅ |
+| Frame | event | live | committedRange | committedTxns | loading | hasPending | isRefetching | view |
+|---|---|---|---|---|---|---|---|---|
+| 0 | idle | Month/Nov-15 | Month/Nov-15 | Nov txns | false | false | false | Month เต็มจอ |
+| 1 | click Day → updateRange | Day/today | Month/Nov-15 | Nov txns | false (stale) | **true** | **true** | Month + overlay ✅ |
+| 2 | hook starts query | Day/today | Month/Nov-15 | Nov txns | true | true | true | Month + overlay ✅ |
+| 3 | query done — hook batch setTransactions(NEW) + setLoading(false) | Day/today | Month/Nov-15 | **Nov txns (ยังไม่ commit)** | false | true | true | Month + overlay ✅ (data ยัง freeze) |
+| 4 | commit effect: setCommittedRange + setCommittedTransactions + setHasPending(false) | Day/today | **Day/today** | **Day txns** | false | false | false | **Day** fresh ✅ |
+
+**Key insight (Frame 3):** ก่อนใช้ `committedTransactions` — frame นี้จะ derive view จาก `transactions=NEW + committedRange=OLD` → กราฟผิด/EmptyState flash ใต้ overlay. ใช้ committedTransactions แล้ว → freeze data ครบจน frame 4 ค่อย flip ทั้งชุด
 
 **ผลลัพธ์:**
 - user toggle Month → Day: RangeNav label เปลี่ยนเป็นวันใหม่ทันที (live state) ✅
@@ -272,16 +289,18 @@ export function pickAnchorForMode(fromMode, toMode, currentAnchor) {
 1. `src/lib/dateRange.js` — **เพิ่ม export `pickAnchorForMode`** เท่านั้น (ของเดิม 9 export ห้ามแตะ)
 2. `src/pages/Stats.jsx` — แก้:
    - import: เพิ่ม `pickAnchorForMode`, `Loader2` (จาก lucide-react)
-   - state: เพิ่ม `committedRange` + `hasPending` state, `hasLoadedOnceRef`, `prevLoadingRef`, commit effect ที่ detect transition `loading: true → false`
+   - state: เพิ่ม `committedRange` + **`committedTransactions`** + `hasPending` state, `hasLoadedOnceRef`, `prevLoadingRef`, commit effect ที่ detect transition `loading: true → false` (commit ทั้ง range + transactions พร้อมกัน)
    - derive view ที่ต้องเปลี่ยนจาก live → committed:
      - `selectedBounds` ← `committedRange.mode/anchor`
      - `trendBuckets` ← `committedRange.mode/anchor`
      - `copy` ← `rangeCopy[committedRange.mode]`
-     - **`trendData` arg 3 ← `committedRange.mode`** (เดิม `rangeMode` — ถ้าลืมจะกลายเป็น bucket ของเก่า + key ของใหม่ → กราฟว่าง/ผิด)
+     - **`selectedTransactions`** filter from **`committedTransactions`** (ไม่ใช่ live `transactions`)
+     - **`trendData`** อ่าน **`committedTransactions`** + `committedRange.mode` (ห้าม mix กับ live `transactions`/`rangeMode` — ไม่งั้น frame 3 จะ render bucket เก่าผสม data ใหม่)
+     - `selectedExpenses`/`categoryData`/`totalExpense`/`groupData`/`visibleTransactions` derive ต่อจาก `selectedTransactions` — ไม่ต้องแก้
    - `queryBounds` **ยังอ่าน live** `rangeMode/anchor` (เพื่อ trigger refetch ทันที)
    - JSX: spinner ใต้ RangeNav (เฉพาะ `isRefetching`), overlay wrapper ครอบ content block (`opacity-50 pointer-events-none transition-opacity duration-200`), group card empty branch
    - **ห้ามเปลี่ยน** `!loading &&` ใน empty state guards (line 199, 243, 309, 331)
-   - handlers: ทุกตัวที่เปลี่ยน range (`handleRangeModeChange`, `handlePrev`, `handleNext`) เรียก helper `updateRange` ที่ตั้ง `hasPending = true` พร้อม set live state
+   - handlers: ทุกตัวที่เปลี่ยน range (`handleRangeModeChange`, `handlePrev`, `handleNext`) เรียก helper `updateRange` (มี no-op guard ใน) ที่ตั้ง `hasPending = true` พร้อม set live state
    - `handleRangeModeChange` ใช้ `pickAnchorForMode` แทน `clampAnchorToToday`
 
 ---
@@ -309,6 +328,7 @@ export function pickAnchorForMode(fromMode, toMode, currentAnchor) {
    - Toggle ไปช่วงที่ไม่มีรายจ่าย → ระหว่าง refetch ไม่ flash EmptyState ของช่วงใหม่ (committed view ของเดิมยัง render)
    - กด ◀▶ เร็วๆ 5 ครั้ง → ระหว่าง refetch แต่ละครั้ง charts ไม่กระพริบเป็นข้อมูลผิดช่วง; commit เกิดครั้งเดียวตอน fetch สุดท้ายจบ
    - **Trend chart verify after switch**: Month → Day → รอ commit → trend chart เป็น 7 แท่งวัน (ไม่ใช่ 6 เดือนของ Month เก่า, ไม่ใช่ก้นว่างจาก mode/bucket mismatch)
+   - **Frame-3 verify (committedTransactions)**: ใช้ React DevTools throttle network → toggle mode → ระหว่าง refetch ดู state — เมื่อ `loading` กลับเป็น `false` ก่อน commit effect รัน (1 frame) ต้องไม่เห็นกราฟกระพริบเป็น "bucket เก่า + data ใหม่". `committedTransactions` ต้องเปลี่ยนพร้อม `committedRange` ใน update เดียว
    - **Error path**: ตัด network → toggle mode → error banner ขึ้น + committed view คงของเดิม + overlay หายไป (hasPending clear แม้ error)
    - **No-op guard**: ใน Day mode (active) → คลิก tab "วัน" ซ้ำอีกครั้ง → ไม่มี overlay/spinner โผล่ (updateRange return ออกก่อน setHasPending). ทดสอบทุก mode ครบ 4 tab
 3. [ ] **Smart anchor:**
