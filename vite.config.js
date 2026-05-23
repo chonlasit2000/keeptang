@@ -7,7 +7,6 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['keeptang-icon.svg'],
       manifest: {
         name: 'keeptang',
         short_name: 'keeptang',
@@ -35,12 +34,6 @@ export default defineConfig({
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable'
-          },
-          {
-            src: '/keeptang-icon.svg',
-            sizes: 'any',
-            type: 'image/svg+xml',
-            purpose: 'any'
           }
         ]
       },
