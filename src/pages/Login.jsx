@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { WalletCards } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext.jsx';
 
 export default function Login() {
@@ -41,9 +40,7 @@ export default function Login() {
   return (
     <main className="grid min-h-screen place-items-center bg-cream px-5 py-8 text-ink">
       <section className="w-full max-w-md rounded-2xl bg-white p-6 shadow-soft">
-        <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-[#F8D6C8] text-coral">
-          <WalletCards className="h-8 w-8" />
-        </div>
+        <img src="/icons/icon-192.png" alt="" className="mx-auto h-20 w-20 rounded-2xl" />
         <div className="mt-5 text-center">
           <p className="text-sm font-semibold text-coral">บันทึกเงินให้เป็นเรื่องง่าย</p>
           <h1 className="mt-1 text-4xl font-bold tracking-normal">keeptang</h1>

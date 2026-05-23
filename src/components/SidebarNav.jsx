@@ -1,5 +1,5 @@
 import { NavLink, Link } from 'react-router-dom';
-import { BarChart3, Home, List, Plus, Settings, WalletCards } from 'lucide-react';
+import { BarChart3, Home, List, Plus, Settings } from 'lucide-react';
 
 const items = [
   { to: '/', label: 'หน้าแรก', icon: Home },
@@ -12,9 +12,7 @@ export default function SidebarNav() {
   return (
     <aside className="hidden w-64 shrink-0 border-r border-[#F0DED1] bg-white/85 p-5 md:block">
       <div className="flex items-center gap-3">
-        <span className="grid h-12 w-12 place-items-center rounded-2xl bg-[#F8D6C8] text-coral">
-          <WalletCards className="h-6 w-6" />
-        </span>
+        <img src="/icons/icon-192.png" alt="" className="h-12 w-12 rounded-2xl" />
         <div>
           <p className="text-xl font-bold">keeptang</p>
           <p className="text-xs font-semibold text-muted">บันทึกรายรับรายจ่าย</p>
